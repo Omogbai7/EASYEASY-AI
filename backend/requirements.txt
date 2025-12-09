@@ -3,7 +3,11 @@ flask-cors==4.0.0
 flask-sqlalchemy==3.1.1
 python-dotenv==1.0.0
 requests==2.31.0
+<<<<<<< HEAD
 openai>=1.55.3
+=======
+openai==1.55.3
+>>>>>>> 8a4d8eb31a72afdf6108a71cabe0bc50d9b86186
 pydantic==2.5.3
 gunicorn==21.2.0
 psycopg2-binary==2.9.6
