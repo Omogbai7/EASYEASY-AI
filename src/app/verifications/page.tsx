@@ -32,7 +32,7 @@ export default function VerificationsPage() {
       const response = await fetch(`${apiUrl}/api/stats`);
       const data = await response.json();
       
-      const relevantVendors = data.users.filter((u: any) => 
+      const relevantVendors = data.users.filter((u: Vendor) => 
         u.verification_status === 'pending' || u.verification_status === 'verified'
       );
       
