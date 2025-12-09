@@ -500,19 +500,6 @@ For issues or questions:
 
 ---
 
-## 🎯 Roadmap
-
-- [ ] Multi-language support
-- [ ] SMS notifications
-- [ ] Analytics dashboard enhancements
-- [ ] Vendor performance metrics
-- [ ] Automated A/B testing for ad captions
-- [ ] Integration with Instagram & Telegram
-- [ ] Mobile app for admins
-- [ ] Referral system for subscribers
-
----
-
 **Built with ❤️ for vendors and customers**
 
 *Empowering businesses through intelligent automation*
