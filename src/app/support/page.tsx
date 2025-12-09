@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -20,16 +20,25 @@ export default function SupportPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Get API URL from Environment Variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTickets = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats`);
+      // 2. FIX: Fetch from '/api/support', NOT '/api/stats'
+      const response = await fetch(`${apiUrl}/api/support`);
+      
+      if (!response.ok) throw new Error("Failed to fetch tickets");
+
       const data = await response.json();
-      setTickets(data.tickets);
+      
+      // 3. Safety: Ensure we always set an array
+      setTickets(data.tickets || []);
     } catch (error) {
       console.error('Error fetching tickets:', error);
     } finally {
@@ -41,7 +50,9 @@ export default function SupportPage() {
     if (!confirm("Mark this ticket as resolved?")) return;
     
     try {
-      await fetch(`http://localhost:5000/api/support/${id}/resolve`, { method: 'POST' });
+      // 4. FIX: Use the variable 'apiUrl'
+      await fetch(`${apiUrl}/api/support/${id}/resolve`, { method: 'POST' });
+      
       // Update UI locally
       setTickets(tickets.map(t => t.id === id ? { ...t, status: 'resolved' } : t));
     } catch (error) {

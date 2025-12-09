@@ -22,15 +22,24 @@ export default function BroadcastsPage() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Get the real API link from Railway
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchBroadcasts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchBroadcasts = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/broadcasts');
+      // 2. FIX: Use the variable, NOT localhost
+      const response = await fetch(`${apiUrl}/api/broadcasts`);
+      
+      // 3. Safety Check: If the URL is wrong, don't crash
+      if (!response.ok) throw new Error("Failed to fetch data");
+
       const data = await response.json();
-      setBroadcasts(data.broadcasts);
+      setBroadcasts(data.broadcasts || []);
     } catch (error) {
       console.error('Error fetching broadcasts:', error);
     } finally {
@@ -67,6 +76,9 @@ export default function BroadcastsPage() {
       </header>
 
       <div className="container mx-auto px-6 py-6">
+        {/* ... (Rest of your UI code remains exactly the same) ... */}
+        
+        {/* Just paste the rest of your JSX here (Cards, Tables, etc.) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <Card className="bg-white shadow-md">
             <CardHeader>

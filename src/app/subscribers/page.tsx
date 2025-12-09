@@ -12,7 +12,6 @@ interface User {
   phone_number: string;
   name: string;
   role: string;
-  // FIX 1: Update type to string because backend sends a comma-separated string
   interests: string; 
   created_at: string;
   is_active: boolean;
@@ -22,16 +21,25 @@ export default function SubscribersPage() {
   const [subscribers, setSubscribers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Get API URL from Environment Variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchSubscribers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchSubscribers = async () => {
     try {  
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats`);
+      // 2. FIX: Fetch from '/api/users' with role filter, NOT '/api/stats'
+      const response = await fetch(`${apiUrl}/api/users?role=subscriber`);
+      
+      if (!response.ok) throw new Error("Failed to fetch data");
+
       const data = await response.json();
-      setSubscribers(data.users);
+      
+      // 3. Safety: Ensure we set an array, even if empty
+      setSubscribers(data.users || []);
     } catch (error) {
       console.error('Error fetching subscribers:', error);
     } finally {
@@ -86,7 +94,7 @@ export default function SubscribersPage() {
                       <TableCell>{subscriber.phone_number}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                        
+                          {/* Handle comma-separated interests string safely */}
                           {subscriber.interests && subscriber.interests !== "No interests set" ? (
                             subscriber.interests.split(',').map((interest, idx) => (
                               <Badge key={idx} variant="secondary" className="text-xs">

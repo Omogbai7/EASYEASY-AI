@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -25,16 +25,24 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState<number | null>(null);
 
+  // 1. Define the API URL once using the environment variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchPayments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchPayments = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats`);
+      // 2. FIX: Fetch from '/api/payments', NOT '/api/stats'
+      const response = await fetch(`${apiUrl}/api/payments`);
+      
+      if (!response.ok) throw new Error("Failed to fetch payments");
+      
       const data = await response.json();
-      setPayments(data.payments);
+      // Ensure we always have an array to prevent crashes
+      setPayments(data.payments || []); 
     } catch (error) {
       console.error('Error fetching payments:', error);
     } finally {
@@ -49,13 +57,13 @@ export default function PaymentsPage() {
     setProcessingId(paymentId);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/payments/${paymentId}/confirm`, {
+      // 3. FIX: Use the variable 'apiUrl', do not use hardcoded localhost
+      const response = await fetch(`${apiUrl}/api/payments/${paymentId}/confirm`, {
         method: 'POST',
       });
       const data = await response.json();
 
       if (data.success) {
-        // Update local state to reflect change immediately
         setPayments(payments.map(p => 
           p.id === paymentId ? { ...p, status: 'completed', completed_at: new Date().toISOString() } : p
         ));

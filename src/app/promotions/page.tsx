@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MessageSquare, Check, X, Send, Eye } from "lucide-react";
+import { Check, X, Send, Eye } from "lucide-react";
 
 interface Promo {
   id: number;
@@ -36,18 +36,27 @@ export default function PromotionsPage() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedPromo, setSelectedPromo] = useState<Promo | null>(null);
 
+  // 1. DEFINE API URL (Uses Railway link online, localhost offline)
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchPromos();
-  }, [filter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter]); // Re-run when filter changes
 
   const fetchPromos = async () => {
     try {
+      // 2. FIX: Use apiUrl variable
       const url = filter === "all"
-        ? 'http://localhost:5000/api/promos'
-        : `http://localhost:5000/api/promos?status=${filter}`;
+        ? `${apiUrl}/api/promos`
+        : `${apiUrl}/api/promos?status=${filter}`;
+      
       const response = await fetch(url);
+      
+      if (!response.ok) throw new Error("Failed to fetch promos");
+
       const data = await response.json();
-      setPromos(data.promos);
+      setPromos(data.promos || []);
     } catch (error) {
       console.error('Error fetching promos:', error);
     } finally {
@@ -57,7 +66,8 @@ export default function PromotionsPage() {
 
   const handleApprove = async (promoId: number) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/promos/${promoId}/approve`, {
+      // 3. FIX: Use apiUrl variable
+      const response = await fetch(`${apiUrl}/api/promos/${promoId}/approve`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -73,7 +83,8 @@ export default function PromotionsPage() {
     if (!reason) return;
 
     try {
-      const response = await fetch(`http://localhost:5000/api/promos/${promoId}/reject`, {
+      // 4. FIX: Use apiUrl variable
+      const response = await fetch(`${apiUrl}/api/promos/${promoId}/reject`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason })
@@ -92,7 +103,8 @@ export default function PromotionsPage() {
     }
 
     try {
-      const response = await fetch(`http://localhost:5000/api/promos/${promoId}/broadcast`, {
+      // 5. FIX: Use apiUrl variable
+      const response = await fetch(`${apiUrl}/api/promos/${promoId}/broadcast`, {
         method: 'POST'
       });
       const data = await response.json();

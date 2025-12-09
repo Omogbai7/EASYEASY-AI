@@ -22,16 +22,25 @@ export default function VendorsPage() {
   const [vendors, setVendors] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Get API URL from Environment Variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchVendors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchVendors = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats`);
+      // 2. FIX: Fetch from '/api/users?role=vendor', NOT '/api/stats'
+      const response = await fetch(`${apiUrl}/api/users?role=vendor`);
+      
+      if (!response.ok) throw new Error("Failed to fetch vendors");
+
       const data = await response.json();
-      setVendors(data.users);
+      
+      // 3. Safety: Ensure we set an array
+      setVendors(data.users || []);
     } catch (error) {
       console.error('Error fetching vendors:', error);
     } finally {

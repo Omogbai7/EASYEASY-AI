@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Eye, CheckCircle, XCircle } from "lucide-react";
+import { ShieldCheck, Eye, CheckCircle } from "lucide-react";
 
 interface Vendor {
   id: number;
@@ -22,17 +22,22 @@ export default function VerificationsPage() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // 1. Use the environment variable
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+
   useEffect(() => {
     fetchVendors();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchVendors = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
-      const response = await fetch(`${apiUrl}/api/stats`);
+      // 2. FIX: Fetch from '/api/users' (not stats)
+      const response = await fetch(`${apiUrl}/api/users?role=vendor`);
       const data = await response.json();
       
-      const relevantVendors = data.users.filter((u: Vendor) => 
+      // Filter for pending or verified
+      const relevantVendors = (data.users || []).filter((u: Vendor) => 
         u.verification_status === 'pending' || u.verification_status === 'verified'
       );
       
@@ -48,7 +53,7 @@ export default function VerificationsPage() {
     if (!confirm("Approve this vendor?")) return;
     
     try {
-      const res = await fetch(`http://localhost:5000/api/users/${id}/verify`, { method: 'POST' });
+      const res = await fetch(`${apiUrl}/api/users/${id}/verify`, { method: 'POST' });
       if (res.ok) {
         alert("Vendor Verified!");
         setVendors(vendors.map(v => v.id === id ? { ...v, verification_status: 'verified' } : v));
@@ -59,13 +64,13 @@ export default function VerificationsPage() {
   };
 
   const handleReject = async (id: number) => {
-    if (!confirm("Reject this vendor's document? They will be notified to re-upload.")) return;
+    if (!confirm("Reject this document?")) return;
     
     try {
-      const res = await fetch(`http://localhost:5000/api/users/${id}/reject_verification`, { method: 'POST' });
+      const res = await fetch(`${apiUrl}/api/users/${id}/reject_verification`, { method: 'POST' });
       if (res.ok) {
         alert("Vendor Rejected.");
-        // Remove them from the list or mark as rejected
+        // Remove from list
         setVendors(vendors.filter(v => v.id !== id));
       }
     } catch (error) {
@@ -108,7 +113,7 @@ export default function VerificationsPage() {
                     <TableHead>Business</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Document</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -129,8 +134,9 @@ export default function VerificationsPage() {
                       </TableCell>
                       <TableCell>
                         {vendor.verification_doc ? (
+                          // 3. FIX: Use dynamic apiUrl link
                           <a 
-                            href={`http://localhost:5000/api/media/${vendor.verification_doc}`} 
+                            href={`${apiUrl}/api/media/${vendor.verification_doc}`} 
                             target="_blank" 
                             rel="noopener noreferrer"
                           >
