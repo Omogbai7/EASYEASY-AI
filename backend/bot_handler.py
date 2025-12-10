@@ -225,19 +225,16 @@ class BotHandler:
         
         # --- MODIFIED: LOCK VENDOR REGISTRATION ---
         if "vendor" in msg_lower or message == "btn_0":
-            # If they are already a registered vendor, let them in (optional)
             if user.is_vendor:
                 self.handle_global_entry(phone_number, user, conversation)
             else:
                 # BLOCK NEW VENDORS
-                # Send the rejection message
-                msg = "Sorry we are not onboarding vendors yet, kindly register as a customer? 👇"
+                msg = "Sorry we are not onboarding vendors yet. Kindly register as a customer? 👇"
                 
-                # Resend the Customer button so they can easily switch
-                buttons = ["Register as Customer"]
+                # FIX: Add a dummy "Back" button first, so "Register" becomes btn_1
+                buttons = ["Back", "Register as Customer"] 
+                
                 self.whatsapp.send_button_message(phone_number, msg, buttons)
-                
-                # Do NOT change state. Keep them in WELCOME state.
                 return
 
         # --- NORMAL CUSTOMER FLOW ---
