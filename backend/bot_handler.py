@@ -299,10 +299,17 @@ class BotHandler:
     def handle_vendor_menu(self, phone_number, message, conversation, user):
         msg_id = message.lower().strip()
         
-        # BLOCK UNVERIFIED VENDORS FROM POSTING
+        # --- FIX: HANDLE REJECTED VENDORS ---
         if msg_id in ["upload_product", "run_promo", "1", "2"]:
+            
+            if user.verification_status == "rejected":
+                 self.whatsapp.send_text_message(phone_number, "❌ Your previous verification document was rejected.\n\nBut don't worry! You can try again.\n\n📎 *Please upload a new valid ID or Utility Bill now.*")
+                 conversation.state = "VENDOR_VERIFICATION"
+                 db.session.commit()
+                 return
+
             if user.verification_status != "verified":
-                 self.whatsapp.send_text_message(phone_number, f"⚠️ Your account status is: *{user.verification_status.upper()}*.\n\nYou cannot run promotions until an admin verifies your documents. Please wait for approval.")
+                 self.whatsapp.send_text_message(phone_number, f"⚠️ Your account status is: *{user.verification_status.upper()}*.\n\nPlease wait for admin approval before posting ads.")
                  return
 
             conversation.state = "PROMO_TITLE"
@@ -310,6 +317,8 @@ class BotHandler:
             db.session.commit()
             intro_text = "🚀 *New Promotion*\n\nLet's get your product seen!\n\nFirst, please reply with the Title of your product."
             self.whatsapp.send_text_message(phone_number, intro_text)
+            return
+
         
         elif msg_id == "profile":
             txt = (
@@ -909,15 +918,14 @@ class BotHandler:
              self.whatsapp.send_text_message(phone_number, txt)
              self.send_customer_menu(phone_number)
         
-        elif "switch" in msg:
-             user.current_mode = "vendor"
-             conversation.state = "VENDOR_MENU"
-             db.session.commit()
-             self.show_vendor_menu(phone_number)
-        elif "become" in msg:
-             conversation.state = "VENDOR_NAME"
-             db.session.commit()
-             self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile. Name?")
+        elif "switch" in msg or "become" in msg or "vendor" in msg:
+             # --- FIX: LOCK VENDOR SWITCHING ---
+             # Previously this allowed switching. Now we block it.
+             msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer! 👇"
+             buttons = ["Back to Menu"]
+             self.whatsapp.send_button_message(phone_number, msg, buttons)
+             # We do NOT change state to VENDOR_MENU. We keep them in CUSTOMER_MENU.
+        
         else:
             self.send_customer_menu(phone_number)
 
