@@ -222,21 +222,33 @@ class BotHandler:
 
     def handle_role_selection(self, phone_number, message, conversation, user):
         msg_lower = message.lower()
+        
+        # --- MODIFIED: LOCK VENDOR REGISTRATION ---
         if "vendor" in msg_lower or message == "btn_0":
+            # If they are already a registered vendor, let them in (optional)
             if user.is_vendor:
                 self.handle_global_entry(phone_number, user, conversation)
             else:
-                conversation.state = "VENDOR_NAME"
-                db.session.commit()
-                self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile.\n\nWhat is your Name?")
-        elif "customer" in msg_lower or message == "btn_1":
+                # BLOCK NEW VENDORS
+                # Send the rejection message
+                msg = "Sorry we are not onboarding vendors yet, kindly register as a customer? 👇"
+                
+                # Resend the Customer button so they can easily switch
+                buttons = ["Register as Customer"]
+                self.whatsapp.send_button_message(phone_number, msg, buttons)
+                
+                # Do NOT change state. Keep them in WELCOME state.
+                return
+
+        # --- NORMAL CUSTOMER FLOW ---
+        elif "customer" in msg_lower or message == "btn_1" or "register as customer" in msg_lower:
             if user.is_subscriber:
                 self.handle_global_entry(phone_number, user, conversation)
             else:
                 conversation.state = "CUSTOMER_NAME"
                 db.session.commit()
                 self.whatsapp.send_text_message(phone_number, "Let's create your Customer Profile.\n\nWhat is your Full Name?")
-
+                
     # --- VENDOR REGISTRATION ---
     def handle_vendor_name(self, phone_number, message, conversation, user):
         user.name = message.strip()
@@ -810,12 +822,15 @@ class BotHandler:
         if "earn" in msg:
              txt = (
                 "💰 Earning Points:\n"
-                "* View Updates: 0.5 pts\n"
-                "* Check-in (Hi): 10 pts\n"
-                "* Contact Seller: 10 pts\n"
-                "* Refer Friend: 15 pts\n"
-                "* Patronize: 50 pts\n\n"
-                "Target: 1000 pts to redeem!"
+                "* 10 pts Daily — Just by chatting with the AI. Say 'Hi' daily to claim\n"
+                "* 10 pts — Contact any of our verified vendors.\n"
+                "* 15 pts — Refer a friend! (Make sure they enter your referral code.)\n"
+                "* 50 pts — Successfully patronize any of our vendors.\n\n"
+                "Redemption Goal: Once your points accumulate to 1000 pts, you can redeem them.\n\n"
+
+                "🛍️ What Can You Use the Points For?\n"
+                "You can use your earned points to purchase *anything* from any of our vendors.\n\n"
+        
              )
              self.whatsapp.send_text_message(phone_number, txt)
              self.send_customer_menu(phone_number) 
