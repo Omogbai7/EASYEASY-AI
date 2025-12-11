@@ -809,11 +809,17 @@ class BotHandler:
              self.whatsapp.send_text_message(phone_number, txt)
              self.send_customer_menu(phone_number)
         
+                
+        if "back" in msg or message == "btn_0":
+            self.send_customer_menu(phone_number)
+            return
+
         elif "switch" in msg or "become" in msg or "vendor" in msg:
-             msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer! 👇"
-             buttons = ["Back to Menu"]
-             self.whatsapp.send_button_message(phone_number, msg, buttons)
-        
+            response_text = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer! 👇"
+            buttons = ["Back to Menu"]
+            
+            self.whatsapp.send_button_message(phone_number, response_text, buttons)
+
         else:
             self.send_customer_menu(phone_number)
 
