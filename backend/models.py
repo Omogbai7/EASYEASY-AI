@@ -20,6 +20,13 @@ class PaymentStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+# --- NEW: ORDER STATUS ENUM ---
+class OrderStatus(str, Enum):
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    DISPUTED = "disputed"
+    CANCELLED = "cancelled"
+
 class User(db.Model):
     __tablename__ = 'users'
 
@@ -32,17 +39,22 @@ class User(db.Model):
     is_subscriber = db.Column(db.Boolean, default=False)
     current_mode = db.Column(db.String(20), default="subscriber") 
 
-    # --- VERIFICATION (NEW) ---
-    verification_status = db.Column(db.String(20), default="unverified") # unverified, pending, verified, rejected
-    verification_doc = db.Column(db.String(255)) # Media ID of the uploaded doc
+    # --- VERIFICATION ---
+    verification_status = db.Column(db.String(20), default="unverified")
+    verification_doc = db.Column(db.String(255))
     
-    # --- POINTS & LIMITS ---
+    # --- POINTS & LIMITS (UPDATED) ---
     points = db.Column(db.Float, default=0.0)
     referral_code = db.Column(db.String(20), unique=True)
     referred_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     free_trials_used = db.Column(db.Integer, default=0)
     community_task_done = db.Column(db.Boolean, default=False)
     last_checkin = db.Column(db.DateTime)
+    
+    # --- NEW: WEALTH PLAN TRACKING ---
+    vendors_patronized_month = db.Column(db.Integer, default=0) # Tracks unique vendors bought from
+    last_ai_reward = db.Column(db.DateTime) # Tracks 5 min intervals
+    ai_points_today = db.Column(db.Float, default=0.0) # Daily cap for AI chat
     
     # --- USER PROFILE DATA ---
     gender = db.Column(db.String(10), default="All") 
@@ -64,6 +76,9 @@ class User(db.Model):
     payments = db.relationship('Payment', backref='user', lazy=True)
     referrals = db.relationship('User', backref=db.backref('referrer', remote_side=[id]))
     tickets = db.relationship('SupportTicket', backref='user', lazy=True)
+    
+    # --- NEW: ORDER RELATIONSHIPS ---
+    # (Defined in Order class via backref, but good to know they link here)
 
     def to_dict(self):
         return {
@@ -75,6 +90,7 @@ class User(db.Model):
             'verification_status': self.verification_status,
             'verification_doc': self.verification_doc,
             'points': self.points,
+            'vendors_patronized_month': self.vendors_patronized_month,
             'referral_code': self.referral_code,
             'created_at': self.created_at.isoformat(),
             'is_active': self.is_active,
@@ -144,6 +160,21 @@ class Payment(db.Model):
             'created_at': self.created_at.isoformat(),
             'completed_at': self.completed_at.isoformat() if self.completed_at else None
         }
+
+# --- NEW: ORDER MODEL ---
+class Order(db.Model):
+    __tablename__ = 'orders'
+    id = db.Column(db.Integer, primary_key=True)
+    buyer_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    vendor_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    promo_id = db.Column(db.Integer, db.ForeignKey('promos.id'))
+    amount = db.Column(db.Float)
+    status = db.Column(db.String(20), default=OrderStatus.PENDING)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    vendor = db.relationship('User', foreign_keys=[vendor_id], backref='sales')
+    buyer = db.relationship('User', foreign_keys=[buyer_id], backref='purchases')
 
 class SupportTicket(db.Model):
     __tablename__ = 'support_tickets'

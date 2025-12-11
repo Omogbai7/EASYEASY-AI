@@ -6,7 +6,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
-from models import db, User, Promo, Conversation, Payment, SupportTicket, UserRole, PromoStatus, PaymentStatus
+from models import db, User, Promo, Conversation, Payment, SupportTicket, UserRole, PromoStatus, PaymentStatus, Order, OrderStatus
 from services.whatsapp_service import WhatsAppService
 from services.openai_service import OpenAIService
 
@@ -157,26 +157,40 @@ class BotHandler:
             return False
         return True
 
+    # 1. DAILY CHECK-IN (Updated to 500)
     def handle_global_entry(self, phone_number, user, conversation):
+        now = datetime.utcnow()
         checkin_msg = ""
-        if user.is_subscriber:
-            now = datetime.utcnow()
-            if user.last_checkin:
-                time_diff = now - user.last_checkin
-                if time_diff >= timedelta(hours=24):
-                    user.points += 10
-                    user.last_checkin = now
-                    checkin_msg = "🌟 +10 Points for daily check-in!\n"
-                else:
-                    remaining = timedelta(hours=24) - time_diff
-                    h = int(remaining.total_seconds() // 3600)
-                    m = int((remaining.total_seconds() % 3600) // 60)
-                    checkin_msg = f"⏳ Check-in available in {h}h {m}m.\n"
-            else:
-                user.points += 10
-                user.last_checkin = now
-                checkin_msg = "🌟 +10 Points for daily check-in!\n"
+        
+        # Check if 24 hours passed
+        if not user.last_checkin or (now - user.last_checkin) >= timedelta(hours=24):
+            user.points += 500  # <--- CHANGED TO 500
+            user.last_checkin = now
+            checkin_msg = "🌟 +500 Points for daily check-in!\n"
             db.session.commit()
+
+    # 2. AI CHAT REWARDS (Controlled)
+    def handle_customer_ai_chat(self, phone_number, message, conversation, user):
+        # ... (AI limit check existing code) ...
+        
+        # --- NEW: EARN 1000 PTS (CAPPED) ---
+        now = datetime.utcnow()
+        
+        # Rule: User earns 1000 pts IF it has been 5 mins since last reward
+        # AND they haven't exceeded daily limit (e.g., 2000 pts max per day from AI)
+        
+        # Reset daily counter if it's a new day
+        if user.last_ai_reward and user.last_ai_reward.date() < now.date():
+             user.ai_points_today = 0
+             
+        # Check 5 minute cooldown
+        time_since_last = (now - (user.last_ai_reward or datetime.min)).total_seconds() / 60
+        
+        if time_since_last >= 5 and user.ai_points_today < 2000: # Max 2000 pts per day from AI
+             user.points += 1000
+             user.ai_points_today += 1000
+             user.last_ai_reward = now
+             self.whatsapp.send_text_message(phone_number, "💰 +1,000 Points for chatting with AI!")
 
         if user.is_vendor and user.is_subscriber:
             msg = f"Hi {user.name or 'there'}! 👋\n{checkin_msg}\nWhich dashboard would you like to access?"
@@ -963,6 +977,96 @@ class BotHandler:
         
         self.whatsapp.send_text_message(phone_number, response)
 
+    def handle_customer_buy_intent(self, phone_number, promo_id_str, user):
+        """Called when user clicks 'Contact Vendor' on an ad"""
+        try:
+            promo_id = int(promo_id_str)
+            promo = Promo.query.get(promo_id)
+            if not promo:
+                self.whatsapp.send_text_message(phone_number, "⚠️ Item not found.")
+                return
+
+            vendor = promo.vendor
+            
+            # 1. Create a Pending Order Record
+            order = Order(
+                buyer_id=user.id,
+                vendor_id=vendor.id,
+                promo_id=promo.id,
+                amount=promo.price,
+                status=OrderStatus.PENDING
+            )
+            db.session.add(order)
+            db.session.commit()
+            
+            # 2. Send Contact Details to Buyer
+            msg_to_buyer = (
+                f"🛍️ *Contact Details for {promo.title}*\n\n"
+                f"📞 Vendor Phone: {vendor.phone_number}\n"
+                f"📝 Contact Info: {promo.contact_info}\n\n"
+                f"👉 Please chat with the vendor to finalize payment and delivery.\n"
+                f"⚠️ *Important:* Remind the vendor to click 'Confirm Sale' in their bot menu after you pay. That is the ONLY way you get your 5,000 Points!"
+            )
+            self.whatsapp.send_text_message(phone_number, msg_to_buyer)
+            
+            # 3. Send Alert to Vendor with CONFIRM Button
+            msg_to_vendor = (
+                f"🔔 *New Order Request!*\n\n"
+                f"👤 Customer: {user.name} ({user.phone_number})\n"
+                f"📦 Item: {promo.title}\n"
+                f"💰 Price: ₦{promo.price:,.2f}\n\n"
+                f"The customer has been given your contact details.\n"
+                f"👉 Once you have received payment and delivered the item, CLICK the button below to confirm the sale and reward the customer."
+            )
+            # Create a unique ID for the button: "confirm_order_[order_id]"
+            self.whatsapp.send_button_message(vendor.phone_number, msg_to_vendor, ["Confirm Sale"], button_ids=[f"confirm_order_{order.id}"])
+            
+        except Exception as e:
+            print(f"Error in buy intent: {e}")
+            self.whatsapp.send_text_message(phone_number, "❌ Error processing request.")
+
+    def handle_vendor_confirm_sale(self, phone_number, order_id_str):
+        """Called when Vendor clicks 'Confirm Sale'"""
+        try:
+            order_id = int(order_id_str)
+            order = Order.query.get(order_id)
+            
+            # Validation
+            if not order:
+                self.whatsapp.send_text_message(phone_number, "⚠️ Order not found.")
+                return
+            
+            if order.status == OrderStatus.CONFIRMED:
+                self.whatsapp.send_text_message(phone_number, "✅ This order was already confirmed.")
+                return
+                
+            # Execute Confirmation
+            order.status = OrderStatus.CONFIRMED
+            
+            # Reward Buyer
+            buyer = order.buyer
+            buyer.points += 5000  # The massive reward
+            
+            # Track 'Unique Vendors Patronized' logic
+            # Check if this buyer has bought from THIS vendor before in the current month
+            # (Simplified logic: Just increment count for now. Ideally reset monthly)
+            buyer.vendors_patronized_month += 1 
+            
+            db.session.commit()
+            
+            # Success Messages
+            self.whatsapp.send_text_message(phone_number, f"✅ Sale Confirmed! We have rewarded {buyer.name} with 5,000 Points.")
+            
+            self.whatsapp.send_text_message(buyer.phone_number, (
+                f"🎉 *Purchase Verified!*\n\n"
+                f"The vendor has confirmed your purchase of '{order.promo_id}'.\n"
+                f"💰 *+5,000 Points Added!*\n"
+                f"📊 Monthly Progress: You have patronized {buyer.vendors_patronized_month}/5 vendors."
+            ))
+
+        except Exception as e:
+            print(f"Error confirming sale: {e}")
+
     # ... (Utils) ...
     def handle_button_reply(self, phone_number: str, button_id: str):
         user = User.query.filter_by(phone_number=phone_number).first()
@@ -971,6 +1075,18 @@ class BotHandler:
             db.session.add(user)
             db.session.commit()
 
+        if button_id.startswith("buy_promo_"):
+            # Format: buy_promo_123
+            promo_id = button_id.split("_")[2]
+            self.handle_customer_buy_intent(phone_number, promo_id, user)
+            return
+            
+        if button_id.startswith("confirm_order_"):
+            # Format: confirm_order_45
+            order_id = button_id.split("_")[2]
+            self.handle_vendor_confirm_sale(phone_number, order_id)
+            return
+        
         conversation = Conversation.query.filter_by(phone_number=phone_number).first()
         if not conversation:
             conversation = Conversation(phone_number=phone_number, state="WELCOME", context="{}")

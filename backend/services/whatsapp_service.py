@@ -87,17 +87,20 @@ class WhatsAppService:
             print(f"Error sending video: {e}")
             return {"success": False, "error": str(e)}
 
-    def send_button_message(self, to: str, body_text: str, buttons: list) -> Dict[str, Any]:
+    def send_button_message(self, to: str, body_text: str, buttons: list, button_ids: list = None) -> Dict[str, Any]:
         """Send an interactive button message"""
         url = f"{self.base_url}/messages"
 
         button_components = []
-        for idx, button_text in enumerate(buttons[:3]):  # Max 3 buttons
+        for idx, button_text in enumerate(buttons[:3]):
+            # Use custom ID if provided, otherwise default to btn_0, btn_1
+            b_id = button_ids[idx] if button_ids and idx < len(button_ids) else f"btn_{idx}"
+            
             button_components.append({
                 "type": "reply",
                 "reply": {
-                    "id": f"btn_{idx}",
-                    "title": button_text[:20]  # Max 20 chars
+                    "id": b_id, 
+                    "title": button_text[:20]
                 }
             })
 
