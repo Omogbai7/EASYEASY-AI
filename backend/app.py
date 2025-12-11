@@ -6,6 +6,8 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from models import db, User, Promo, Payment, Broadcast, Conversation, SupportTicket, PromoStatus, PaymentStatus
 from bot_handler import BotHandler
+from services.openai_service import OpenAIService
+from sqlalchemy import text
 from services.whatsapp_service import WhatsAppService
 from datetime import datetime
 
@@ -133,6 +135,29 @@ def get_stats():
         'total_revenue': total_revenue
     })
 
+@app.route('/fix_database_schema', methods=['GET'])
+def fix_database_schema():
+    """Temporary route to add missing columns to the database"""
+    try:
+        with app.app_context():
+            # 1. Add AI Memory Columns
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_memory TEXT;"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_interaction_summary TEXT;"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS mood_score VARCHAR(20);"))
+            
+            # 2. Add Wealth Plan Columns (Just in case they are missing too)
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS vendors_patronized_month INTEGER DEFAULT 0;"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_ai_reward TIMESTAMP;"))
+            db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_points_today FLOAT DEFAULT 0.0;"))
+            
+            # 3. Create the Order table if it doesn't exist
+            db.create_all()
+            
+            db.session.commit()
+            return "✅ Database Schema Updated Successfully! You can close this page."
+    except Exception as e:
+        return f"❌ Error updating schema: {str(e)}"
+    
 @app.route('/api/users', methods=['GET'])
 def get_users():
     page = request.args.get('page', 1, type=int)
