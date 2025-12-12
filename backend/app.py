@@ -454,6 +454,23 @@ def set_vendor_lock_status():
     db.session.commit()
     return jsonify({"success": True, "locked": should_lock})
 
+@app.route('/reset_database_secret_key_123', methods=['GET'])
+def reset_database():
+    """Wipes the entire database and recreates it. DANGEROUS!"""
+    try:
+        with app.app_context():
+            db.drop_all()   # Deletes all tables
+            db.create_all() # Recreates them with new schema
+            
+            # Optional: Create a default admin user immediately
+            # admin = User(phone_number="234...", name="Admin", is_vendor=True)
+            # db.session.add(admin)
+            # db.session.commit()
+            
+        return "✅ Database has been completely reset!"
+    except Exception as e:
+        return f"❌ Error resetting DB: {str(e)}"
+
 @app.route('/api/media/<media_id>', methods=['GET'])
 def get_media(media_id):
     """Proxy to fetch media from WhatsApp and serve it to the frontend"""
