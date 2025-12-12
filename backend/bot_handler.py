@@ -259,9 +259,11 @@ class BotHandler:
 
         # --- CUSTOMER FLOW ---
         elif "customer" in msg_lower or message == "btn_1":
-            # ... (Rest of customer logic stays same)
-                self.whatsapp.send_text_message(phone_number, "Let's create your Customer Profile.\n\nWhat is your Full Name?")
-                
+            user.current_mode = "subscriber" # Recommended: Set mode explicitly
+            conversation.state = "CUSTOMER_NAME" # <--- THIS WAS MISSING
+            db.session.commit() # Ensure state is saved
+            self.whatsapp.send_text_message(phone_number, "Let's create your Customer Profile.\n\nWhat is your Full Name?")
+
     # --- VENDOR REGISTRATION ---
     def handle_vendor_name(self, phone_number, message, conversation, user):
         user.name = message.strip()
@@ -751,14 +753,32 @@ class BotHandler:
     # CUSTOMER FLOWS
     # ---------------------------------------------------------
     def handle_customer_name(self, phone_number, message, conversation, user):
+        # 1. Capture the name first!
         user.name = message.strip()
-        user.referral_code = f"{user.name[:3].upper()}{random.randint(100,999)}"
         
+        # 2. Generate Referral Code (Fixed Indentation)
+        if not user.referral_code:
+            clean_name = "".join(e for e in user.name if e.isalnum())
+            base = (clean_name[:3] if len(clean_name) >= 3 else "USR").upper()
+            
+            unique = False
+            while not unique:
+                # Increased range to 1000-9999 for less collision
+                rand_suffix = random.randint(1000, 9999) 
+                new_code = f"{base}{rand_suffix}"
+                
+                # Check if this code exists
+                existing = User.query.filter_by(referral_code=new_code).first()
+                if not existing:
+                    user.referral_code = new_code
+                    unique = True
+        
+        # 3. Move to next state
         conversation.state = "CUSTOMER_GENDER"
         db.session.commit()
         buttons = ["Male", "Female"]
         self.whatsapp.send_button_message(phone_number, "Please select your gender:", buttons)
-
+        
     def handle_customer_gender(self, phone_number, message, conversation, user):
         gender = message.strip().capitalize()
         if gender not in ["Male", "Female"]:
