@@ -6,6 +6,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
+# FIX 1: Added SystemSetting to imports
 from models import db, User, Promo, Payment, Broadcast, Conversation, SupportTicket, PromoStatus, PaymentStatus, Order, OrderStatus, SystemSetting
 from services.whatsapp_service import WhatsAppService
 from services.openai_service import OpenAIService
@@ -234,7 +235,8 @@ class BotHandler:
              return
 
         # --- THIS IS THE SECTION FOR SWITCHING/BECOMING VENDOR ---
-        elif "switch" in msg or "become" in msg or "vendor" in msg:
+        # FIX 3: Changed 'msg' to 'msg_lower' to avoid NameError
+        elif "switch" in msg_lower or "become" in msg_lower or "vendor" in msg_lower:
              
              # 1. If they are ALREADY a vendor, let them switch immediately (Ignore lock)
              if user.is_vendor:
@@ -260,6 +262,7 @@ class BotHandler:
                  self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
 
         # --- CUSTOMER FLOW ---
+        # FIX 4: Added state update for CUSTOMER_NAME
         elif "customer" in msg_lower or message == "btn_1":
             user.current_mode = "subscriber" # Recommended: Set mode explicitly
             conversation.state = "CUSTOMER_NAME" # <--- THIS WAS MISSING
@@ -755,10 +758,11 @@ class BotHandler:
     # CUSTOMER FLOWS
     # ---------------------------------------------------------
     def handle_customer_name(self, phone_number, message, conversation, user):
+        # FIX 2: Correct logic and indentation for Name & Referral Code
         # 1. Capture the name first!
         user.name = message.strip()
         
-        # 2. Generate Referral Code (Fixed Indentation)
+        # 2. Generate Referral Code 
         if not user.referral_code:
             clean_name = "".join(e for e in user.name if e.isalnum())
             base = (clean_name[:3] if len(clean_name) >= 3 else "USR").upper()
@@ -873,6 +877,7 @@ class BotHandler:
         self.whatsapp.send_list_message(phone_number, body_text, button_text, sections)
 
     def handle_customer_menu(self, phone_number, message, conversation, user):
+        # FIX 5: Defined 'msg' at the top to avoid UnboundLocalError
         msg = message.lower()
         
         if "earn" in msg:
