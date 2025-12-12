@@ -6,7 +6,7 @@ import urllib.parse
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 load_dotenv()
-from models import db, User, Promo, Payment, Broadcast, Conversation, SupportTicket, PromoStatus, PaymentStatus, Order, OrderStatus
+from models import db, User, Promo, Payment, Broadcast, Conversation, SupportTicket, PromoStatus, PaymentStatus, Order, OrderStatus, SystemSetting
 from services.whatsapp_service import WhatsAppService
 from services.openai_service import OpenAIService
 
@@ -778,7 +778,7 @@ class BotHandler:
         db.session.commit()
         buttons = ["Male", "Female"]
         self.whatsapp.send_button_message(phone_number, "Please select your gender:", buttons)
-        
+
     def handle_customer_gender(self, phone_number, message, conversation, user):
         gender = message.strip().capitalize()
         if gender not in ["Male", "Female"]:
