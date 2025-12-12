@@ -99,6 +99,9 @@ export default function Home() {
             <Link href="/verifications" className="text-slate-600 hover:text-slate-900 transition whitespace-nowrap">
               Verifications
             </Link>
+            <Link href="/settings" className="text-slate-600 hover:text-slate-900 transition whitespace-nowrap">
+              Settings
+            </Link>
           </div>
         </div>
       </nav>
