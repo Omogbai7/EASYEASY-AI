@@ -233,29 +233,31 @@ class BotHandler:
              self.handle_global_entry(phone_number, user, conversation)
              return
 
-        # --- VENDOR FLOW (WITH DATABASE CHECK) ---
-        if "vendor" in msg_lower or "become" in msg_lower:
-            # 1. Check if user is ALREADY a vendor (Always let them in)
-            if user.is_vendor:
-                self.handle_global_entry(phone_number, user, conversation)
-                return
-            
-            # 2. Check Database Setting for "Lock"
-            lock_setting = SystemSetting.query.get('vendor_lock')
-            is_locked = lock_setting.value == 'true' if lock_setting else False
-            
-            if is_locked:
-                # LOCKED: Show the "Sorry" message
-                msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer! 👇"
-                buttons = ["Back to Menu", "Register as Customer"]
-                self.whatsapp.send_button_message(phone_number, msg, buttons)
-                return
-            else:
-                # UNLOCKED: Start Registration
-                conversation.state = "VENDOR_NAME"
-                db.session.commit()
-                self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
-                return
+        # --- THIS IS THE SECTION FOR SWITCHING/BECOMING VENDOR ---
+        elif "switch" in msg or "become" in msg or "vendor" in msg:
+             
+             # 1. If they are ALREADY a vendor, let them switch immediately (Ignore lock)
+             if user.is_vendor:
+                 user.current_mode = "vendor"
+                 conversation.state = "VENDOR_MENU"
+                 db.session.commit()
+                 self.show_vendor_menu(phone_number)
+                 return
+
+             # 2. If they are NEW, check the Admin Lock Setting
+             lock_setting = SystemSetting.query.get('vendor_lock')
+             is_locked = lock_setting.value == 'true' if lock_setting else False
+             
+             if is_locked:
+                 # LOCKED: Show the rejection message
+                 msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer!"
+                 buttons = ["Back to Menu"]
+                 self.whatsapp.send_button_message(phone_number, msg, buttons)
+             else:
+                 # UNLOCKED: Start Registration
+                 conversation.state = "VENDOR_NAME"
+                 db.session.commit()
+                 self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
 
         # --- CUSTOMER FLOW ---
         elif "customer" in msg_lower or message == "btn_1":
