@@ -4,6 +4,7 @@ import threading
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
+from models import SystemSetting
 from models import db, User, Promo, Payment, Broadcast, Conversation, SupportTicket, PromoStatus, PaymentStatus
 from bot_handler import BotHandler
 from services.openai_service import OpenAIService
@@ -428,6 +429,30 @@ def resolve_ticket(ticket_id):
     ticket.status = "resolved"
     db.session.commit()
     return jsonify({"success": True, "ticket": ticket.to_dict()})
+
+@app.route('/api/settings/vendor-lock', methods=['GET'])
+def get_vendor_lock_status():
+    """Check if vendor registration is locked"""
+    setting = SystemSetting.query.get('vendor_lock')
+    # Default to False (Not locked) if setting doesn't exist yet
+    is_locked = setting.value == 'true' if setting else False
+    return jsonify({"locked": is_locked})
+
+@app.route('/api/settings/vendor-lock', methods=['POST'])
+def set_vendor_lock_status():
+    """Turn vendor registration ON or OFF"""
+    data = request.json
+    should_lock = data.get('locked', False)
+    
+    setting = SystemSetting.query.get('vendor_lock')
+    if not setting:
+        setting = SystemSetting(key='vendor_lock', value='true' if should_lock else 'false')
+        db.session.add(setting)
+    else:
+        setting.value = 'true' if should_lock else 'false'
+    
+    db.session.commit()
+    return jsonify({"success": True, "locked": should_lock})
 
 @app.route('/api/media/<media_id>', methods=['GET'])
 def get_media(media_id):

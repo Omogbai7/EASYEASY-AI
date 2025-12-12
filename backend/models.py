@@ -193,6 +193,11 @@ class SupportTicket(db.Model):
             'status': self.status,
             'created_at': self.created_at.isoformat()
         }
+    
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+    key = db.Column(db.String(50), primary_key=True) # e.g. "vendor_onboarding"
+    value = db.Column(db.String(50)) # "true" or "false"
 
 class Conversation(db.Model):
     __tablename__ = 'conversations'
@@ -222,3 +227,4 @@ class Broadcast(db.Model):
             'total_recipients': self.total_recipients,
             'created_at': self.created_at.isoformat()
         }
+    
