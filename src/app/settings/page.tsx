@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch"; // Ensure you have a switch component or use a button
 import { Lock, Unlock } from "lucide-react";
 import Link from "next/link";
 
@@ -13,20 +12,21 @@ export default function SettingsPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
-    fetchStatus();
-  }, []);
+    // Defined inside useEffect to prevent dependency warnings and infinite loops
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${apiUrl}/api/settings/vendor-lock`);
+        const data = await res.json();
+        setIsLocked(data.locked);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const fetchStatus = async () => {
-    try {
-      const res = await fetch(`${apiUrl}/api/settings/vendor-lock`);
-      const data = await res.json();
-      setIsLocked(data.locked);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-    }
-  };
+    fetchStatus();
+  }, [apiUrl]); // Only re-run if apiUrl changes (rare)
 
   const toggleLock = async () => {
     const newState = !isLocked;
