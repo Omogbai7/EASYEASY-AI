@@ -27,6 +27,15 @@ app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
+# --- THIS IS THE CRITICAL FIX ---
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,   # Pings DB before every query to ensure connection is alive
+    "pool_recycle": 300,     # Refreshes connection every 5 minutes
+    "pool_size": 10,         # Keeps 10 connections open
+    "max_overflow": 20       # Allows temporary extra connections
+}
+# --------------------------------
+
 CORS(app)
 db.init_app(app)
 
