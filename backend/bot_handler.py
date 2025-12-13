@@ -288,12 +288,12 @@ class BotHandler:
              self.handle_global_entry(phone_number, user, conversation)
              return
 
-        # --- ADD "btn_0" TO THIS CHECK ---
+        # --- BLOCK A: VENDOR CHECK ---
+        # Note: We check for "btn_0" (Standard Vendor Button)
         if "vendor" in msg_lower or "become" in msg_lower or message == "btn_0":
             
             # 1. Check if user is ALREADY a vendor (Always let them in)
             if user.is_vendor:
-                # If they are already a vendor, just send them to the menu
                 conversation.state = "VENDOR_MENU"
                 db.session.commit()
                 self.show_vendor_menu(phone_number)
@@ -307,7 +307,8 @@ class BotHandler:
                 # LOCKED: Show the "Sorry" message
                 msg = "🚫 Sorry, Vendor Registration is currently CLOSED by the admin.\n\nYou can still register as a customer to buy items!"
                 buttons = ["Register as Customer"]
-                self.whatsapp.send_button_message(phone_number, msg, buttons)
+                # FIX: Send a CUSTOM ID 'btn_force_customer' so it doesn't clash with btn_0
+                self.whatsapp.send_button_message(phone_number, msg, buttons, button_ids=["btn_force_customer"])
                 return
             else:
                 # UNLOCKED: Start Registration
@@ -316,8 +317,9 @@ class BotHandler:
                 self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
                 return
 
-        # --- CUSTOMER FLOW ---
-        elif "customer" in msg_lower or message == "btn_1":
+        # --- BLOCK B: CUSTOMER CHECK ---
+        # FIX: Added 'btn_force_customer' to this check
+        elif "customer" in msg_lower or message == "btn_1" or message == "btn_force_customer":
             user.current_mode = "subscriber"
             conversation.state = "CUSTOMER_NAME"
             db.session.commit()
@@ -1052,7 +1054,7 @@ class BotHandler:
                  conversation.state = "VENDOR_NAME"
                  db.session.commit()
                  self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
-                 
+
     def handle_update_interests(self, phone_number, message, conversation, user):
         new_interest = message.strip()
         current = user.interests or ""
