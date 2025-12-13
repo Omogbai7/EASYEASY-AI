@@ -1055,6 +1055,11 @@ class BotHandler:
                  db.session.commit()
                  self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
 
+        else:
+             # User said something natural (e.g., "How do I make money?" or "I want shoes")
+             # Don't ignore them! Send it to the AI.
+             self.handle_customer_ai_chat(phone_number, message, conversation, user)
+             
     def handle_update_interests(self, phone_number, message, conversation, user):
         new_interest = message.strip()
         current = user.interests or ""
@@ -1176,8 +1181,8 @@ class BotHandler:
         state = conversation.state
 
         if state == "WELCOME":
-            if button_id == "btn_0": self.handle_role_selection(phone_number, "btn_0", conversation, user)
-            elif button_id == "btn_1": self.handle_role_selection(phone_number, "btn_1", conversation, user)
+            # Pass ANY button ID (including 'btn_force_customer') to the handler
+            self.handle_role_selection(phone_number, button_id, conversation, user) 
         elif state == "SELECT_DASHBOARD":
             self.handle_dashboard_selection(phone_number, button_id, conversation, user)
         elif state == "PROMO_TYPE":
