@@ -8,26 +8,30 @@ class OpenAIService:
         self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
     def generate_ad_caption(self, title: str, description: str, price: Optional[float] = None, business_name: Optional[str] = None, instruction: Optional[str] = None) -> str:
-        """Generate a STRICT bullet-point list."""
-        system_instruction = """You are a formatting assistant. 
-        Your ONLY job is to take product details and format them into a clean vertical list with emojis.
+        """Generate a creative, high-converting ad caption."""
         
-        STRICT RULES:
-        1. Start with a Headline in this format: "🔥 [TITLE]"
-        2. Create 3 bullet points using these specific emojis if applicable: 
-           - 🔌 Product: [Name]
-           - 📝 Details: [Description]
-           - 🏢 Vendor: [Business Name]
-        3. DO NOT include Price.
-        4. DO NOT include Contact Info.
-        5. DO NOT include the word "None". If a detail is missing, skip that line.
-        6. Do not write any intro or outro text."""
+        # 1. CHANGE: Give it a creative personality, not a robotic one.
+        system_instruction = """You are a world-class Copywriter for WhatsApp Ads.
+        Your goal is to write a catchy, high-converting ad that makes people want to buy immediately.
+
+        GUIDELINES:
+        1. HOOK: Start with a punchy headline or question (Use emojis like 🔥, 🚀, 😱).
+        2. BODY: Describe the benefits excitedly, not just features.
+        3. FORMAT: Use short paragraphs or bullet points. Make it easy to scan.
+        4. TONE: Energetic, persuasive, and trusted.
+        5. DO NOT include Price (unless user asks in instructions).
+        6. DO NOT include Contact Info (the bot adds this later).
+        
+        If the user gives specific instructions (e.g., "Make it funny", "Shorter"), follow them strictly.
+        Otherwise, generate 3 distinct styles (e.g., "Urgent", "Luxury", "Casual") if asked to regenerate.
+        """
 
         user_content = f"""
-        Title: {title}
-        Description: {description if description else 'Available now'}
-        Business: {business_name}
-        {f'Instruction: {instruction}' if instruction else ''}
+        Product: {title}
+        Details: {description if description else 'Available now'}
+        Vendor: {business_name}
+        
+        {f'USER FEEDBACK/INSTRUCTION: {instruction}' if instruction else 'Write a fresh, catchy caption for this.'}
         """
 
         try:
@@ -37,13 +41,13 @@ class OpenAIService:
                     {"role": "system", "content": system_instruction},
                     {"role": "user", "content": user_content}
                 ],
-                max_tokens=150,
-                temperature=0.5 
+                max_tokens=250,
+                temperature=0.8  # <--- CHANGE: Increased from 0.5 to 0.8 for more creativity/variety
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
             print(f"Error generating caption: {e}")
-            return f"🔥 {title}\n🔌 Product: {title}\n📝 Details: {description}"
+            return f"🔥 {title}\n\n{description}\n\n✅ Sold by: {business_name}"
 
     def smart_chat(self, user_name, user_memory, user_message, product_data):
         """

@@ -172,17 +172,71 @@ class BotHandler:
     # 2. AI CHAT REWARDS (Controlled)
     def handle_customer_ai_chat(self, phone_number, message, conversation, user):
         
+        # 1. CHECK LIMITS (Don't let them bankrupt you)
+        if not self.check_ai_limits(user):
+            self.whatsapp.send_text_message(phone_number, "⏳ You've reached your daily AI chat limit. Please try again tomorrow!")
+            return
+
+        # 2. GIVE REWARDS (Your existing logic, slightly cleaned up)
         now = datetime.utcnow()
         if user.last_ai_reward and user.last_ai_reward.date() < now.date():
              user.ai_points_today = 0
              
         time_since_last = (now - (user.last_ai_reward or datetime.min)).total_seconds() / 60
         
+        # Reward specific logic
+        reward_msg = ""
         if time_since_last >= 5 and user.ai_points_today < 2000:
              user.points += 1000
              user.ai_points_today += 1000
              user.last_ai_reward = now
-             self.whatsapp.send_text_message(phone_number, "💰 +1,000 Points for chatting with AI!")
+             reward_msg = " (💰 +1,000 Pts)"
+             db.session.commit()
+
+        # 3. FETCH PRODUCTS (Feed the AI context)
+        # We grab the last 15 approved items so the AI knows what is for sale.
+        recent_promos = Promo.query.filter_by(status=PromoStatus.APPROVED).order_by(Promo.created_at.desc()).limit(15).all()
+        
+        products_context = "CURRENT INVENTORY:\n"
+        if not recent_promos:
+            products_context += "No items currently in stock."
+        else:
+            for p in recent_promos:
+                # Format: "- iPhone 12: N300,000 (Sold by TechGuy)"
+                products_context += f"- {p.title} ({p.category}): ₦{p.price:,.0f} by {p.vendor.business_name}\n"
+
+        # 4. CALL THE BRAIN (OpenAI)
+        try:
+            # We send the User's Name, Memory, Message, and the Product List
+            ai_response = self.openai.smart_chat(
+                user_name=user.name,
+                user_memory=user.ai_memory or "",
+                user_message=message,
+                product_data=products_context
+            )
+            
+            # Extract the reply and the new fact
+            reply_text = ai_response.get('reply', "I'm having trouble connecting to the brain. Try again?")
+            new_fact = ai_response.get('new_fact')
+
+            # 5. SAVE MEMORY (Make the bot smarter)
+            if new_fact:
+                current_mem = user.ai_memory or ""
+                # Append new fact (e.g., "Likes red shoes")
+                user.ai_memory = f"{current_mem}; {new_fact}".strip('; ')
+            
+            # 6. UPDATE USAGE STATS
+            user.daily_ai_count += 1
+            user.last_ai_usage = now
+            db.session.commit()
+
+            # 7. SEND REPLY (Combine AI text + Reward notification)
+            final_msg = f"{reply_text}{reward_msg}"
+            self.whatsapp.send_text_message(phone_number, final_msg)
+
+        except Exception as e:
+            print(f"AI Chat Error: {e}")
+            self.whatsapp.send_text_message(phone_number, "⚠️ My AI brain is offline momentarily. Please try 'Menu' to browse manually.")
 
         if user.is_vendor and user.is_subscriber:
             msg = f"Hi {user.name or 'there'}! 👋\n{checkin_msg}\nWhich dashboard would you like to access?"
@@ -230,46 +284,46 @@ class BotHandler:
         msg_lower = message.lower()
         
         # --- CHECK BACK BUTTON ---
-        if "back" in msg_lower or message == "btn_0":
+        if "back" in msg_lower:
              self.handle_global_entry(phone_number, user, conversation)
              return
 
-        # --- THIS IS THE SECTION FOR SWITCHING/BECOMING VENDOR ---
-        # FIX 3: Changed 'msg' to 'msg_lower' to avoid NameError
-        elif "switch" in msg_lower or "become" in msg_lower or "vendor" in msg_lower:
-             
-             # 1. If they are ALREADY a vendor, let them switch immediately (Ignore lock)
-             if user.is_vendor:
-                 user.current_mode = "vendor"
-                 conversation.state = "VENDOR_MENU"
-                 db.session.commit()
-                 self.show_vendor_menu(phone_number)
-                 return
-
-             # 2. If they are NEW, check the Admin Lock Setting
-             lock_setting = SystemSetting.query.get('vendor_lock')
-             is_locked = lock_setting.value == 'true' if lock_setting else False
-             
-             if is_locked:
-                 # LOCKED: Show the rejection message
-                 msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer!"
-                 buttons = ["Back to Menu"]
-                 self.whatsapp.send_button_message(phone_number, msg, buttons)
-             else:
-                 # UNLOCKED: Start Registration
-                 conversation.state = "VENDOR_NAME"
-                 db.session.commit()
-                 self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
+        # --- ADD "btn_0" TO THIS CHECK ---
+        if "vendor" in msg_lower or "become" in msg_lower or message == "btn_0":
+            
+            # 1. Check if user is ALREADY a vendor (Always let them in)
+            if user.is_vendor:
+                # If they are already a vendor, just send them to the menu
+                conversation.state = "VENDOR_MENU"
+                db.session.commit()
+                self.show_vendor_menu(phone_number)
+                return
+            
+            # 2. Check Database Setting for "Lock"
+            lock_setting = SystemSetting.query.get('vendor_lock')
+            is_locked = lock_setting.value == 'true' if lock_setting else False
+            
+            if is_locked:
+                # LOCKED: Show the "Sorry" message
+                msg = "🚫 Sorry, Vendor Registration is currently CLOSED by the admin.\n\nYou can still register as a customer to buy items!"
+                buttons = ["Register as Customer"]
+                self.whatsapp.send_button_message(phone_number, msg, buttons)
+                return
+            else:
+                # UNLOCKED: Start Registration
+                conversation.state = "VENDOR_NAME"
+                db.session.commit()
+                self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
+                return
 
         # --- CUSTOMER FLOW ---
-        # FIX 4: Added state update for CUSTOMER_NAME
         elif "customer" in msg_lower or message == "btn_1":
-            user.current_mode = "subscriber" # Recommended: Set mode explicitly
-            conversation.state = "CUSTOMER_NAME" # <--- THIS WAS MISSING
-            db.session.commit() # Ensure state is saved
+            user.current_mode = "subscriber"
+            conversation.state = "CUSTOMER_NAME"
+            db.session.commit()
             self.whatsapp.send_text_message(phone_number, "Let's create your Customer Profile.\n\nWhat is your Full Name?")
-
-    # --- VENDOR REGISTRATION ---
+        
+        # --- VENDOR REGISTRATION ---
     def handle_vendor_name(self, phone_number, message, conversation, user):
         user.name = message.strip()
     
@@ -975,29 +1029,30 @@ class BotHandler:
         
         elif "switch" in msg or "become" in msg or "vendor" in msg:
              
-             # 1. If they are ALREADY a vendor, let them switch immediately (Ignore lock)
-             if user.is_vendor:
+             # 1. STRICT CHECK: Only bypass lock if they are ALREADY a verified/pending vendor
+             # If they are just a "user" who clicked vendor once before, we still want to block them if locked.
+             if user.is_vendor and user.business_name:
                  user.current_mode = "vendor"
                  conversation.state = "VENDOR_MENU"
                  db.session.commit()
                  self.show_vendor_menu(phone_number)
                  return
 
-             # 2. If they are NEW, check the Admin Lock Setting
+             # 2. If they are NOT a fully set up vendor, apply the LOCK.
              lock_setting = SystemSetting.query.get('vendor_lock')
              is_locked = lock_setting.value == 'true' if lock_setting else False
              
              if is_locked:
-                 # LOCKED: Show the rejection message
-                 msg = "Sorry, we are not onboarding vendors at the moment. Please continue enjoying our services as a customer!"
-                 buttons = ["Back to Menu"]
-                 self.whatsapp.send_button_message(phone_number, msg, buttons)
+                 msg = "🚫 Sorry, we are not accepting new Vendors at the moment.\n\nPlease continue enjoying our services as a customer!"
+                 self.whatsapp.send_text_message(phone_number, msg)
+                 # Re-send customer menu so they aren't stuck
+                 self.send_customer_menu(phone_number)
              else:
                  # UNLOCKED: Start Registration
                  conversation.state = "VENDOR_NAME"
                  db.session.commit()
                  self.whatsapp.send_text_message(phone_number, "Let's create your Vendor Profile! 🏪\n\nWhat is your Business Name?")
-
+                 
     def handle_update_interests(self, phone_number, message, conversation, user):
         new_interest = message.strip()
         current = user.interests or ""
